@@ -1,0 +1,6 @@
+{
+    "unique_name": "weather",
+    "matching_hotwords": [
+        "what's the weather today"
+    ]
+}
