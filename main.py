@@ -145,6 +145,13 @@ class CheckWeatherCapability(MatchingCapability):
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
 
+        # Logging examples
+        worker.editor_logging_handler.info("Info logging...")
+        worker.editor_logging_handler.warning("Warning logging...")
+        worker.editor_logging_handler.debug("Warning logging...")
+        worker.editor_logging_handler.error("Warning logging...")
+        worker.editor_logging_handler.critical("Warning logging...")
+
         self.worker.capability_event.set()
 
         location = ""
