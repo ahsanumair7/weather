@@ -1,9 +1,7 @@
 import logging
 from typing import Any
 from src.agent.capability import MatchingCapability
-from src.agent.base import BotAgent
 from src.agent.io_interface import (
-    SynchronousTTT,
     SharedValue,
 )
 import os
@@ -130,19 +128,8 @@ class CheckWeatherCapability(MatchingCapability):
         worker: AgentWorker,
         interrupt_str: SharedValue,
     ):
-        msg = worker.final_user_input
-        agent = worker.agent
-        text_respond = worker.ttt_sync
-        speak_respond = worker.tts_ios
-        meta = {}
-
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
-
         self.worker.capability_event.set()
-
         location = ""
-        # if msg.find(" in ") != -1:
-        #     location = msg.split(" in ")[1]
-
         asyncio.create_task(self.first_setup(location, interrupt_str))
