@@ -103,8 +103,6 @@ class CheckWeatherCapability(MatchingCapability):
 
                     res = handlers[q](answer)
                     if res is False:  # This means the location was invalid or not found
-                        # self.weather_report = "Incorrect location, please try again."
-                        # await self.capability_worker.speak(self.weather_report, interrupt_str)
                         used_prompt = REPEAT_PROMPT
                         continue  # Exit the loop if the location is invalid
 
