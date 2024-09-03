@@ -19,8 +19,6 @@ import requests
 STEP_ONE = "Which specific location are you interested in knowing the weather for?"
 STEP_TWO = "Are you sure"
 REPEAT_PROMPT = "I'm sorry, I didn't get that. Please repeat that."
-DYNAMIC_INTERRUPTION = "dynamic_interruption"
-
 
 class CheckWeatherCapability(MatchingCapability):
     worker: AgentWorker = None
@@ -126,8 +124,6 @@ class CheckWeatherCapability(MatchingCapability):
         self.worker.user_is_speaking_event.clear()
         await asyncio.sleep(1)
         self.capability_worker.resume_normal_flow()
-        os.environ[DYNAMIC_INTERRUPTION] = "True"
-
 
     def call(
         self,
@@ -138,19 +134,10 @@ class CheckWeatherCapability(MatchingCapability):
         agent = worker.agent
         text_respond = worker.ttt_sync
         speak_respond = worker.tts_ios
-        audio = "/tmp/the_file.wav"
         meta = {}
-        os.environ[DYNAMIC_INTERRUPTION] = "False"
 
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
-
-        # Logging examples
-        worker.editor_logging_handler.info("Info logging...")
-        worker.editor_logging_handler.warning("Warning logging...")
-        worker.editor_logging_handler.debug("Warning logging...")
-        worker.editor_logging_handler.error("Warning logging...")
-        worker.editor_logging_handler.critical("Warning logging...")
 
         self.worker.capability_event.set()
 
