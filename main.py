@@ -4,22 +4,19 @@ import os
 from src.agent.capability import MatchingCapability
 from src.main import AgentWorker
 from src.agent.capability_worker import CapabilityWorker
-from geopy.geocoders import Nominatim
-import requests
 
-STEP_ONE = "Which specific location are you interested in knowing the weather for?"
-STEP_TWO = "Are you sure"
-REPEAT_PROMPT = "I'm sorry, I didn't get that. Please repeat that."
+INTRO_PROMPT = "Hi! I'm your daily life advisor. Please tell me about a problem you're facing."
+FEEDBACK_PROMPT = " Are you satisfied with the advice?"
+FINAL_PROMPT = "Thank you for using the daily life advisor. Goodbye!"
 
-class CheckWeatherCapability(MatchingCapability):
+class DailyLifeAdvisorCapability(MatchingCapability):
     worker: AgentWorker = None
     capability_worker: CapabilityWorker = None
-    weather_report: str = ""
 
     @classmethod
     def register_capability(cls) -> "MatchingCapability":
         with open(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"),
         ) as file:
             data = json.load(file)
         return cls(
@@ -27,93 +24,53 @@ class CheckWeatherCapability(MatchingCapability):
             matching_hotwords=data["matching_hotwords"],
         )
 
-    def get_location(self, answer: str):
-        geolocator = Nominatim(user_agent="my_user_agent")
+    async def give_advice(self):
+        """
+        The main function for giving advice to the user. 
+        It asks the user about their problem, provides a solution, and asks for feedback.
+        """
+
+        # Introduce the advisor and ask for the user's problem
+        """
+        - `speak` function is used to speak the text to the user. It takes the text as an argument. 
+                Here, the advisor introduces itself and asks the user about their problem.
+        """
+        await self.capability_worker.speak(INTRO_PROMPT)
+
+        """
+        - `user_response` function is used to get the user's response. It returns the user's response.
+                Here, the user's problem is stored in the `user_problem` variable.
+        """
+        user_problem = await self.capability_worker.user_response()
+
+        # Generate a solution based on the problem
+        solution_prompt = f"The user has the following problem: {user_problem}. Provide a helpful solution in just 1 or 2 sentences."
+        """
+        - `text_to_text_response` function is used to generate a solution based on the user's input. It returns the generated response based on the input prompt.
+                Here, the response is stored in the `solution` variable.
+        """
+        solution = self.capability_worker.text_to_text_response(solution_prompt)
+
+        # Speak the solution and ask if the user is satisfied
+        solution_with_feedback_ask = solution + FEEDBACK_PROMPT
         
-        try:
-            loc = geolocator.geocode(answer)
-            
-            if loc is None:
-                # Location not found
-                self.weather_report = "Incorrect location, please try again."
-                return False
-            
-            # Call the weather API with the location coordinates
-            result = requests.get(
-                f"https://api.open-meteo.com/v1/forecast?latitude={loc.latitude}&longitude={loc.longitude}&current=temperature_2m,wind_speed_10m,relative_humidity_2m,apparent_temperature",
-            )
-            result = result.json()
+        """
+        - `run_io_loop` function is used to speak the solution and get the user's feedback. It returns the user's feedback.
+                It is a combination of `speak` and `user_response` functions.
+                Here, the user's feedback is stored in the `user_feedback` variable.
+        """
+        user_feedback = await self.capability_worker.run_io_loop(solution_with_feedback_ask)
 
-            # Extract weather data
-            temperature = result.get("current", {}).get("temperature_2m")
-            humidity = result.get("current", {}).get("relative_humidity_2m")
-            wind_speed = result.get("current", {}).get("wind_speed_10m")
-            apparent_temperature = result.get("current", {}).get("apparent_temperature")
+        # Exit the capability if the user is not satisfied
+        await self.capability_worker.speak(FINAL_PROMPT)
 
-            # If the API does not return weather data, handle the error gracefully
-            if not temperature or not humidity or not wind_speed or not apparent_temperature:
-                self.weather_report = "Unable to retrieve weather data, please try again later."
-                return False
-
-            # Construct the weather report
-            self.weather_report = (
-                f"Temperature in {answer} is {temperature}° Celsius. "
-                f"Feels like {apparent_temperature}° Celsius. "
-                f"Humidity is {humidity}%. "
-                f"Wind speed is {wind_speed} km/h."
-            )
-
-            return True
-
-        except Exception as e:
-            self.weather_report = "An error occurred while fetching the weather data. Please try again."
-            return False
-
-
-    async def first_setup(self, location: str):
-        if location == "":
-            questions = {
-                "name": STEP_ONE,
-            }
-
-            handlers = {
-                "name": self.get_location,
-            }
-
-            for q, prompt in questions.items():
-                used_prompt = prompt
-                while True:
-                    answer = await self.capability_worker.run_io_loop(used_prompt)
-
-                    if answer is None:
-                        used_prompt = REPEAT_PROMPT
-                        continue
-
-                    res = handlers[q](answer)
-                    if res is False:  # This means the location was invalid or not found
-                        used_prompt = REPEAT_PROMPT
-                        continue  # Exit the loop if the location is invalid
-
-                    if res:
-                        break  # Exit the loop if the location was successfully processed
-        else:
-            res = self.get_location(location)
-            if not res:
-                self.weather_report = "Incorrect location, please try again."
-
-        # Speak the weather report (or error message) once
-        await self.capability_worker.speak(self.weather_report)
-        self.worker.user_is_finished_speak_event.set()
-        self.worker.user_is_speaking_event.clear()
-        await asyncio.sleep(1)
+        # Resume the normal workflow
         self.capability_worker.resume_normal_flow()
 
-    def call(
-        self,
-        worker: AgentWorker,
-    ):
+    def call(self, worker: AgentWorker):
+        # Initialize the worker and capability worker
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
-        self.worker.capability_event.set()
-        location = ""
-        asyncio.create_task(self.first_setup(location))
+
+        # Start the advisor functionality
+        asyncio.create_task(self.give_advice())
