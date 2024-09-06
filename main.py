@@ -1,18 +1,11 @@
-import logging
-from typing import Any
-from src.agent.capability import MatchingCapability
-from src.agent.io_interface import (
-    SharedValue,
-)
-import os
-import json
-from src.main import AgentWorker
 import asyncio
+import json
+import os
+from src.agent.capability import MatchingCapability
+from src.main import AgentWorker
 from src.agent.capability_worker import CapabilityWorker
-
 from geopy.geocoders import Nominatim
 import requests
-
 
 STEP_ONE = "Which specific location are you interested in knowing the weather for?"
 STEP_TWO = "Are you sure"
@@ -73,14 +66,12 @@ class CheckWeatherCapability(MatchingCapability):
             return True
 
         except Exception as e:
-            logging.error(f"Error retrieving location or weather data: {e}")
             self.weather_report = "An error occurred while fetching the weather data. Please try again."
             return False
 
 
-    async def first_setup(self, location: str, interrupt_str: SharedValue):
+    async def first_setup(self, location: str):
         if location == "":
-            logging.info("Location not provided, asking user for location")
             questions = {
                 "name": STEP_ONE,
             }
@@ -92,12 +83,9 @@ class CheckWeatherCapability(MatchingCapability):
             for q, prompt in questions.items():
                 used_prompt = prompt
                 while True:
-                    logging.debug("Capability: Prompt: " + prompt)
-                    answer = await self.capability_worker.run_io_loop(used_prompt, interrupt_str)
-                    logging.debug(f"User answer: {answer}")
+                    answer = await self.capability_worker.run_io_loop(used_prompt)
 
                     if answer is None:
-                        logging.info("User did not provide an answer")
                         used_prompt = REPEAT_PROMPT
                         continue
 
@@ -109,13 +97,12 @@ class CheckWeatherCapability(MatchingCapability):
                     if res:
                         break  # Exit the loop if the location was successfully processed
         else:
-            logging.info(f"Location provided: {location}")
             res = self.get_location(location)
             if not res:
                 self.weather_report = "Incorrect location, please try again."
 
         # Speak the weather report (or error message) once
-        await self.capability_worker.speak(self.weather_report, interrupt_str)
+        await self.capability_worker.speak(self.weather_report)
         self.worker.user_is_finished_speak_event.set()
         self.worker.user_is_speaking_event.clear()
         await asyncio.sleep(1)
@@ -124,10 +111,9 @@ class CheckWeatherCapability(MatchingCapability):
     def call(
         self,
         worker: AgentWorker,
-        interrupt_str: SharedValue,
     ):
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
         self.worker.capability_event.set()
         location = ""
-        asyncio.create_task(self.first_setup(location, interrupt_str))
+        asyncio.create_task(self.first_setup(location))
