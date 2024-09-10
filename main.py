@@ -11,7 +11,7 @@ STEP_ONE = "Which specific location are you interested in knowing the weather fo
 STEP_TWO = "Are you sure"
 REPEAT_PROMPT = "I'm sorry, I didn't get that. Please repeat that."
 
-class CheckWeatherCapability(MatchingCapability):
+class NewWeatherCapability(MatchingCapability):
     worker: AgentWorker = None
     capability_worker: CapabilityWorker = None
     weather_report: str = ""
@@ -103,8 +103,6 @@ class CheckWeatherCapability(MatchingCapability):
 
         # Speak the weather report (or error message) once
         await self.capability_worker.speak(self.weather_report)
-        self.worker.user_is_finished_speak_event.set()
-        self.worker.user_is_speaking_event.clear()
         await asyncio.sleep(1)
         self.capability_worker.resume_normal_flow()
 
@@ -114,6 +112,5 @@ class CheckWeatherCapability(MatchingCapability):
     ):
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
-        self.worker.capability_event.set()
         location = ""
         asyncio.create_task(self.first_setup(location))
