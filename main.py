@@ -11,7 +11,7 @@ STEP_ONE = "Which specific location are you interested in knowing the weather fo
 STEP_TWO = "Are you sure"
 REPEAT_PROMPT = "I'm sorry, I didn't get that. Please repeat that."
 
-class NewWeatherCapability(MatchingCapability):
+class WeatherCapability(MatchingCapability):
     worker: AgentWorker = None
     capability_worker: CapabilityWorker = None
     weather_report: str = ""
@@ -62,6 +62,9 @@ class NewWeatherCapability(MatchingCapability):
                 f"Humidity is {humidity}%. "
                 f"Wind speed is {wind_speed} km/h."
             )
+            if self.worker.language != "" or self.worker.language != "english":
+                self.weather_report += "Reply in language: %s"%self.worker.language
+                self.weather_report = self.capability_worker.text_to_text_response(self.weather_report, self.worker.agent_memory.full_message_history)
 
             return True
 
@@ -69,34 +72,44 @@ class NewWeatherCapability(MatchingCapability):
             self.weather_report = "An error occurred while fetching the weather data. Please try again."
             return False
 
+    async def first_setup(self):
+        # msg = self.worker.final_user_input
 
-    async def first_setup(self, location: str):
-        if location == "":
-            questions = {
-                "name": STEP_ONE,
-            }
+        msg = await self.capability_worker.wait_for_complete_transcription()
+        
+        # Extract location from user message using text-to-text response
+        location_prompt = f"""
+        Based on the user message, extract the location/city name they are asking about.
+        
+        Examples:
+        - "What's the weather in New York?" -> New York
+        - "How's the weather in London today?" -> London
+        - "Weather for Tokyo" -> Tokyo
+        - "Tell me about the weather in Paris" -> Paris
+        - "What's the weather like?" -> ASK
+        
+        If no specific location is mentioned, return "ASK".
+        If a location is mentioned, return only the location name.
+        
+        User message: {msg}
+        """
+        
+        location = self.capability_worker.text_to_text_response(location_prompt, 
+                                                              self.worker.agent_memory.full_message_history)
 
-            handlers = {
-                "name": self.get_location,
-            }
-
-            for q, prompt in questions.items():
-                used_prompt = prompt
-                while True:
-                    answer = await self.capability_worker.run_io_loop(used_prompt)
-
-                    if answer is None:
-                        used_prompt = REPEAT_PROMPT
-                        continue
-
-                    res = handlers[q](answer)
-                    if res is False:  # This means the location was invalid or not found
-                        used_prompt = REPEAT_PROMPT
-                        continue  # Exit the loop if the location is invalid
-
-                    if res:
-                        break  # Exit the loop if the location was successfully processed
+        if location == "ASK":
+            # Ask user for location if not specified
+            await self.capability_worker.speak(STEP_ONE)
+            user_response = await self.capability_worker.user_response()
+            
+            if user_response is None:
+                self.weather_report = "I didn't catch that. Please try again."
+            else:
+                res = self.get_location(user_response)
+                if not res:
+                    self.weather_report = "Incorrect location, please try again."
         else:
+            # Use the extracted location
             res = self.get_location(location)
             if not res:
                 self.weather_report = "Incorrect location, please try again."
@@ -112,5 +125,4 @@ class NewWeatherCapability(MatchingCapability):
     ):
         self.worker = worker
         self.capability_worker = CapabilityWorker(self.worker)
-        location = ""
-        asyncio.create_task(self.first_setup(location))
+        self.worker.session_tasks.create(self.first_setup())
