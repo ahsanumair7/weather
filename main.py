@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 from src.agent.capability import MatchingCapability
@@ -116,7 +115,7 @@ class WeatherCapability(MatchingCapability):
 
         # Speak the weather report (or error message) once
         await self.capability_worker.speak(self.weather_report)
-        await asyncio.sleep(1)
+        self.worker.session_tasks.sleep(1)
         self.capability_worker.resume_normal_flow()
 
     def call(
